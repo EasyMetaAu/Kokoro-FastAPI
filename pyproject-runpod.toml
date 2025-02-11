@@ -6,8 +6,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # Core dependencies
-    "fastapi==0.115.6",
-    "uvicorn==0.34.0",
     "click>=8.0.0",
     "pydantic==2.10.4",
     "pydantic-settings==2.7.0",
@@ -18,6 +16,8 @@ dependencies = [
     "scipy==1.14.1",
     # Audio processing
     "soundfile==0.13.0",
+    # Text processing
+    "phonemizer==3.3.0",
     "regex==2024.11.6",
     # Utilities
     "aiofiles==23.2.1",
@@ -35,9 +35,7 @@ dependencies = [
     'misaki[en,ja,ko,zh] @ git+https://github.com/hexgrad/misaki.git@62c806340b4f43c7ec98e2807f4b39064dd3c620',
     "spacy==3.7.2",
     "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl",
-    "inflect>=7.5.0",
-    "phonemizer-fork>=3.3.2",
-    "av>=14.1.0",
+    "runpod==1.7.7"
 ]
 
 [project.optional-dependencies]
