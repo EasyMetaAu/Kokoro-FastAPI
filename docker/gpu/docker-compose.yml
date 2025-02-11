@@ -5,6 +5,7 @@ services:
     build:
       context: ../..
       dockerfile: docker/gpu/Dockerfile
+    restart: always
     volumes:
       - ../../api:/app/api
     ports:
