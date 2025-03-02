@@ -31,8 +31,8 @@ dependencies = [
     "matplotlib>=3.10.0",
     "mutagen>=1.47.0",
     "psutil>=6.1.1",
-    "kokoro @ git+https://github.com/hexgrad/kokoro.git@fd62d70ec7e4f52e4f13deb280107ac378d61459",
-    'misaki[en,ja,ko,zh] @ git+https://github.com/hexgrad/misaki.git@62c806340b4f43c7ec98e2807f4b39064dd3c620',
+     "kokoro @ git+https://github.com/hexgrad/kokoro.git@3f9dd88d6f739b98a86aea608e238621f5b40add",
+    'misaki[en,ja,ko,zh] @ git+https://github.com/hexgrad/misaki.git@14675cc09b1db6e452bd1114435ffcd3a1f0e770',
     "spacy==3.7.2",
     "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl",
     "runpod==1.7.7"
