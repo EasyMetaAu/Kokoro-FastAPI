@@ -47,8 +47,13 @@ class StreamingAudioWriter:
                 for packet in packets:
                     self.container.mux(packet)
                     
-                data=self.output_buffer.getvalue()
+                data = self.output_buffer.getvalue()
                 self.container.close()
+                
+                # MP3格式特殊处理，修复格式问题
+                if self.format == "mp3":
+                    data = self._fix_mp3_format(data)
+                
                 return data
 
         if audio_data is None or len(audio_data) == 0:
@@ -70,7 +75,36 @@ class StreamingAudioWriter:
                 self.container.mux(packet)
             
             data = self.output_buffer.getvalue()
+            
+            # MP3格式中间块不需要修复，只在最终输出修复
+            
             self.output_buffer.seek(0)
             self.output_buffer.truncate(0)
             return data 
+    
+    def _fix_mp3_format(self, mp3_data: bytes) -> bytes:
+        """修复MP3格式，确保符合标准格式
+        
+        Args:
+            mp3_data: 原始MP3数据
+            
+        Returns:
+            修复后的MP3数据
+        """
+        try:
+            # 将二进制数据转换为BytesIO，然后使用pydub加载
+            mp3_buffer = BytesIO(mp3_data)
+            audio = AudioSegment.from_file(mp3_buffer, format="mp3")
+            
+            # 重新导出为MP3格式，这将重建正确的MP3头和文件结构
+            # 指定比特率为128k，与原始设置保持一致
+            output_buffer = BytesIO()
+            audio.export(output_buffer, format="mp3", bitrate="128k")
+            
+            # 返回修复后的MP3数据
+            return output_buffer.getvalue()
+        except Exception as e:
+            logger.error(f"Error fixing MP3 format: {str(e)}")
+            # 如果修复失败，返回原始数据
+            return mp3_data
 

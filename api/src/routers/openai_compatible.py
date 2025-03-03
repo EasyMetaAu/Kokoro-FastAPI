@@ -8,12 +8,15 @@ import tempfile
 from typing import AsyncGenerator, Dict, List, Union, Tuple
 from urllib import response
 import numpy as np
+import time
+import logging
+import traceback
+import uuid
 
 import aiofiles
 
 from structures.schemas import CaptionedSpeechRequest
-import torch
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, WebSocket, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from loguru import logger
 
@@ -305,7 +308,27 @@ async def create_speech(
                 is_first_chunk=False,
                 is_last_chunk=True,
             )
-            output=audio_data.output + final.output
+            output = audio_data.output + final.output
+            
+            # 额外的MP3格式修复步骤，确保iOS设备可以正确读取
+            if request.response_format == "mp3":
+                try:
+                    from io import BytesIO
+                    from pydub import AudioSegment
+                    
+                    # 重新编码MP3以确保格式正确
+                    mp3_buffer = BytesIO(output)
+                    audio = AudioSegment.from_file(mp3_buffer, format="mp3")
+                    
+                    # 重新导出为MP3，这将生成正确的MP3头和元数据
+                    # 指定比特率为128k，保持音质
+                    output_buffer = BytesIO()
+                    audio.export(output_buffer, format="mp3", bitrate="128k")
+                    output = output_buffer.getvalue()
+                except Exception as e:
+                    logger.warning(f"MP3格式修复失败: {str(e)}")
+                    # 如果修复失败，保持原始输出
+            
             return Response(
                 content=output,
                 media_type=content_type,

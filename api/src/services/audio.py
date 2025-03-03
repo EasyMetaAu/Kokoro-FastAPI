@@ -162,6 +162,7 @@ class AudioService:
             writer = AudioService._writers[writer_key]
             
             # Write audio data first
+            chunk_data = None
             if len(audio_chunk.audio) > 0:
                 chunk_data = writer.write_chunk(audio_chunk.audio)
 
@@ -170,11 +171,11 @@ class AudioService:
                 final_data = writer.write_chunk(finalize=True)
                 del AudioService._writers[writer_key]
                 if final_data:
-                    audio_chunk.output=final_data
+                    audio_chunk.output = final_data
                 return audio_chunk
             
             if chunk_data:
-                    audio_chunk.output=chunk_data
+                audio_chunk.output = chunk_data
             return audio_chunk
 
         except Exception as e:
