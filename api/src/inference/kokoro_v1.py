@@ -223,7 +223,11 @@ class KokoroV1(BaseModelBackend):
                 await paths.save_voice_tensor(voice_tensor, temp_path)
                 
                 # Clean up the voice tensor from memory immediately
-                del voice_tensor
+                # Use try-except to safely handle tensor cleanup
+                try:
+                    del voice_tensor
+                except:
+                    pass  # voice_tensor might not be deletable
                 
                 voice_path = temp_path
                 temp_voice_path = temp_path  # Track for cleanup
@@ -251,8 +255,7 @@ class KokoroV1(BaseModelBackend):
                         audio_numpy = result.audio.numpy()
                         yield audio_numpy
                         
-                        # Clean up the result tensor immediately
-                        del result.audio
+                        # Note: Cannot delete result.audio as it's not a deletable attribute
                     else:
                         logger.warning("No audio in chunk")
 
@@ -344,7 +347,11 @@ class KokoroV1(BaseModelBackend):
                 await paths.save_voice_tensor(voice_tensor, temp_path)
                 
                 # Clean up the voice tensor from memory immediately
-                del voice_tensor
+                # Use try-except to safely handle tensor cleanup
+                try:
+                    del voice_tensor
+                except:
+                    pass  # voice_tensor might not be deletable
                 
                 voice_path = temp_path
                 temp_voice_path = temp_path  # Track for cleanup
@@ -420,8 +427,7 @@ class KokoroV1(BaseModelBackend):
                         audio_chunk = AudioChunk(audio_numpy, word_timestamps=word_timestamps)
                         yield audio_chunk
                         
-                        # Clean up the result tensor immediately
-                        del result.audio
+                        # Note: Cannot delete result.audio as it's not a deletable attribute
                     else:
                         logger.warning("No audio in chunk")
 
