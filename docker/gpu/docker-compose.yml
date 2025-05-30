@@ -8,6 +8,7 @@ services:
     volumes:
       - ../../api:/app/api
     user: "1001:1001"  # Ensure container runs as UID 1001 (appuser)
+    restart: unless-stopped
     ports:
       - "8880:8880"
     environment:
