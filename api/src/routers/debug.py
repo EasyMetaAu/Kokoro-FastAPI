@@ -1,10 +1,14 @@
 import threading
 import time
 from datetime import datetime
+import os
+import gc
+from typing import List, Dict, Any
 
 import psutil
 import torch
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from loguru import logger
 
 try:
     import GPUtil
@@ -149,6 +153,57 @@ async def get_system_info():
         "network": network_info,
         "gpu": gpu_info,
     }
+
+
+@router.get("/debug/memory")
+async def get_memory_info():
+    """Get basic memory information for debugging."""
+    memory_info = {
+        "timestamp": time.time(),
+        "python_memory_mb": 0,
+        "gpu_memory_mb": 0,
+    }
+    
+    # Python memory info
+    process = psutil.Process(os.getpid())
+    memory_info["python_memory_mb"] = process.memory_info().rss / 1024 / 1024
+    
+    # GPU memory info
+    if torch.cuda.is_available():
+        try:
+            memory_info["gpu_memory_mb"] = torch.cuda.memory_allocated() / 1024 / 1024
+        except Exception as e:
+            memory_info["gpu_error"] = str(e)
+    
+    return memory_info
+
+
+@router.post("/debug/memory/cleanup")
+async def force_memory_cleanup():
+    """Force memory cleanup."""
+    cleanup_results = {
+        "timestamp": time.time(),
+        "memory_before_mb": 0,
+        "memory_after_mb": 0,
+        "memory_saved_mb": 0
+    }
+    
+    # Capture memory before cleanup
+    if torch.cuda.is_available():
+        cleanup_results["memory_before_mb"] = torch.cuda.memory_allocated() / 1024 / 1024
+    
+    # Force garbage collection and GPU cleanup
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+    
+    # Capture memory after cleanup
+    if torch.cuda.is_available():
+        cleanup_results["memory_after_mb"] = torch.cuda.memory_allocated() / 1024 / 1024
+        cleanup_results["memory_saved_mb"] = cleanup_results["memory_before_mb"] - cleanup_results["memory_after_mb"]
+    
+    return cleanup_results
 
 
 @router.get("/debug/session_pools")

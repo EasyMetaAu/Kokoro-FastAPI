@@ -4,12 +4,13 @@ FastAPI OpenAI Compatible API
 
 import os
 import sys
+import gc
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import torch
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
@@ -106,6 +107,17 @@ async def lifespan(app: FastAPI):
     logger.info(startup_msg)
 
     yield
+    
+    # Cleanup on shutdown
+    logger.info("Shutting down - performing final cleanup")
+    try:
+        model_manager.unload_all()
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+    except Exception as e:
+        logger.warning(f"Cleanup during shutdown failed: {e}")
 
 
 # Initialize FastAPI app

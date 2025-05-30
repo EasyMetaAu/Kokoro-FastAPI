@@ -5,6 +5,7 @@ import os
 import re
 import tempfile
 import time
+import gc
 from typing import AsyncGenerator, List, Optional, Tuple, Union
 
 import numpy as np
@@ -22,6 +23,16 @@ from .audio import AudioNormalizer, AudioService
 from .streaming_audio_writer import StreamingAudioWriter
 from .text_processing import tokenize
 from .text_processing.text_processor import process_text_chunk, smart_split
+
+
+def cleanup_temp_voice_file(temp_path: str):
+    """Clean up temporary voice file."""
+    try:
+        if temp_path and os.path.exists(temp_path):
+            os.remove(temp_path)
+            logger.debug(f"Cleaned up temporary voice file: {temp_path}")
+    except Exception as e:
+        logger.warning(f"Failed to clean up temp voice file {temp_path}: {e}")
 
 
 class TTSService:
@@ -91,7 +102,6 @@ class TTSService:
 
                 # Generate audio using pre-warmed model
                 if isinstance(backend, KokoroV1):
-                    chunk_index = 0
                     # For Kokoro V1, pass text and voice info with lang_code
                     async for chunk_data in self.model_manager.generate(
                         chunk_text,
@@ -120,7 +130,6 @@ class TTSService:
                                 chunk_data, chunk_text, speed, is_last, normalizer
                             )
                             yield chunk_data
-                        chunk_index += 1
                 else:
                     # For legacy backends, load voice tensor
                     voice_tensor = await self._voice_manager.load_voice(
@@ -170,7 +179,8 @@ class TTSService:
             raise ValueError(f"Voice not found at path: {path}")
 
         logger.debug(f"Loading voice tensor from path: {path}")
-        return torch.load(path, map_location="cpu") * weight
+        tensor = torch.load(path, map_location="cpu") * weight
+        return tensor
 
     async def _get_voices_path(self, voice: str) -> Tuple[str, str]:
         """Get voice path, handling combined voices.
@@ -184,6 +194,7 @@ class TTSService:
         Raises:
             RuntimeError: If voice not found
         """
+        temp_combined_path = None
         try:
             # Split the voice on + and - and ensure that they get added to the list eg: hi+bob = ["hi","+","bob"]
             split_voice = re.split(r"([-+])", voice)
@@ -240,15 +251,26 @@ class TTSService:
                     combined_tensor += voice_tensor
                 else:
                     combined_tensor -= voice_tensor
+                
+                # Clean up voice tensor immediately after use
+                del voice_tensor
 
             # Save the new combined voice so it can be loaded latter
             temp_dir = tempfile.gettempdir()
-            combined_path = os.path.join(temp_dir, f"{voice}.pt")
+            combined_path = os.path.join(temp_dir, f"combined_{voice}_{os.getpid()}.pt")
             logger.debug(f"Saving combined voice to: {combined_path}")
-            torch.save(combined_tensor, combined_path)
+            torch.save(combined_tensor.cpu(), combined_path)  # Save to CPU to reduce GPU memory
+            
+            # Clean up the combined tensor
+            del combined_tensor
+            gc.collect()
+            
             return voice, combined_path
         except Exception as e:
             logger.error(f"Failed to get voice path: {e}")
+            # Clean up temp file if created
+            if temp_combined_path and os.path.exists(temp_combined_path):
+                cleanup_temp_voice_file(temp_combined_path)
             raise
 
     async def generate_audio_stream(
@@ -266,12 +288,18 @@ class TTSService:
         stream_normalizer = AudioNormalizer()
         chunk_index = 0
         current_offset = 0.0
+        temp_voice_path = None
         try:
             # Get backend
             backend = self.model_manager.get_backend()
 
             # Get voice path, handling combined voices
             voice_name, voice_path = await self._get_voices_path(voice)
+            
+            # Track if this is a temporary combined voice file
+            if "combined_" in os.path.basename(voice_path):
+                temp_voice_path = voice_path
+                
             logger.debug(f"Using voice path: {voice_path}")
 
             # Use provided lang_code or determine from voice name
@@ -388,6 +416,15 @@ class TTSService:
         except Exception as e:
             logger.error(f"Error in phoneme audio generation: {str(e)}")
             raise e
+        finally:
+            # Clean up temporary voice file if created
+            if temp_voice_path:
+                cleanup_temp_voice_file(temp_voice_path)
+            
+            # Only cleanup memory after entire generation is complete
+            if settings.use_gpu and torch.cuda.is_available():
+                gc.collect()
+                torch.cuda.empty_cache()
 
     async def generate_audio(
         self,
@@ -421,6 +458,11 @@ class TTSService:
         except Exception as e:
             logger.error(f"Error in audio generation: {str(e)}")
             raise
+        finally:
+            # Only cleanup memory after entire generation is complete
+            if settings.use_gpu and torch.cuda.is_available():
+                gc.collect()
+                torch.cuda.empty_cache()
 
     async def combine_voices(self, voices: List[str]) -> torch.Tensor:
         """Combine multiple voices.
@@ -454,10 +496,15 @@ class TTSService:
             Tuple of (audio array, processing time)
         """
         start_time = time.time()
+        temp_voice_path = None
         try:
             # Get backend and voice path
             backend = self.model_manager.get_backend()
             voice_name, voice_path = await self._get_voices_path(voice)
+            
+            # Track if this is a temporary combined voice file
+            if "combined_" in os.path.basename(voice_path):
+                temp_voice_path = voice_path
 
             if isinstance(backend, KokoroV1):
                 # For Kokoro V1, use generate_from_tokens with raw phonemes
@@ -497,3 +544,12 @@ class TTSService:
         except Exception as e:
             logger.error(f"Error in phoneme audio generation: {str(e)}")
             raise
+        finally:
+            # Clean up temporary voice file if created
+            if temp_voice_path:
+                cleanup_temp_voice_file(temp_voice_path)
+            
+            # Only cleanup memory after entire generation is complete
+            if settings.use_gpu and torch.cuda.is_available():
+                gc.collect()
+                torch.cuda.empty_cache()
