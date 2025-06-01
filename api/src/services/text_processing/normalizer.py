@@ -441,7 +441,29 @@ def normalize_text(text: str, normalization_options: NormalizationOptions) -> st
     text = text.replace('\n', ' ')
     text = text.replace('\r', ' ')
     
-    # Handle other problematic symbols
+    # Handle titles and abbreviations
+    text = re.sub(r"\bD[Rr]\.(?= [A-Z])", "Doctor", text)
+    text = re.sub(r"\b(?:Mr\.|MR\.(?= [A-Z]))", "Mister", text)
+    text = re.sub(r"\b(?:Ms\.|MS\.(?= [A-Z]))", "Miss", text)
+    text = re.sub(r"\b(?:Mrs\.|MRS\.(?= [A-Z]))", "Mrs", text)
+    text = re.sub(r"\betc\.(?! [A-Z])", "etc", text)
+
+    # Handle common words
+    text = re.sub(r"(?i)\b(y)eah?\b", r"\1e'a", text)
+
+    # Handle numbers and money BEFORE replacing special characters
+    text = re.sub(r"(?<=\d),(?=\d)", "", text)
+
+    text = MONEY_PATTERN.sub(
+        handle_money,
+        text,
+    )
+
+    text = NUMBER_PATTERN.sub(handle_numbers, text)
+
+    text = re.sub(r"\d*\.\d+", handle_decimal, text)
+
+    # Handle other problematic symbols AFTER money/number processing
     text = text.replace('~', '')    # Remove tilde
     text = text.replace('@', ' at ')  # At symbol
     text = text.replace('#', ' number ')  # Hash/pound
@@ -456,28 +478,6 @@ def normalize_text(text: str, normalization_options: NormalizationOptions) -> st
     text = text.replace('/', ' slash ')   # Forward slash to space (unless in URLs)
     text = text.replace('=', ' equals ')  # Equals sign
     text = text.replace('+', ' plus ')    # Plus sign
-
-    # Handle titles and abbreviations
-    text = re.sub(r"\bD[Rr]\.(?= [A-Z])", "Doctor", text)
-    text = re.sub(r"\b(?:Mr\.|MR\.(?= [A-Z]))", "Mister", text)
-    text = re.sub(r"\b(?:Ms\.|MS\.(?= [A-Z]))", "Miss", text)
-    text = re.sub(r"\b(?:Mrs\.|MRS\.(?= [A-Z]))", "Mrs", text)
-    text = re.sub(r"\betc\.(?! [A-Z])", "etc", text)
-
-    # Handle common words
-    text = re.sub(r"(?i)\b(y)eah?\b", r"\1e'a", text)
-
-    # Handle numbers and money
-    text = re.sub(r"(?<=\d),(?=\d)", "", text)
-
-    text = MONEY_PATTERN.sub(
-        handle_money,
-        text,
-    )
-
-    text = NUMBER_PATTERN.sub(handle_numbers, text)
-
-    text = re.sub(r"\d*\.\d+", handle_decimal, text)
 
     # Handle various formatting
     text = re.sub(r"(?<=\d)-(?=\d)", " to ", text)
